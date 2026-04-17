@@ -1,253 +1,319 @@
-local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-
--- // สร้างหน้าต่างหลัก //
-local Window = Fluent:CreateWindow({
-    Title = "Revezy Cloud | MM2 ULTIMATE Edition",
-    SubTitle = "โดย Beam (Revezy Studio)",
-    TabWidth = 160,
-    Size = UDim2.fromOffset(580, 460),
-    Acrylic = true, 
-    Theme = "Dark",
-    MinimizeKey = Enum.KeyCode.LeftControl
-})
-
--- // การตั้งค่าเริ่มต้น //
-local Options = {
-    AimEnabled = false,
-    AimSmooth = 0.2,
-    AimFOV = 150,
-    ShowFOV = true,
-    FOVColor = Color3.fromRGB(255, 255, 255),
-    EspEnabled = false,
-    ItemEsp = false,
-    Speed = 16,
-    InfJump = false,
-    Noclip = false,
-    AutoFarm = false,
-    FieldOfView = 70
-}
-
-local Tabs = {
-    Main = Window:AddTab({ Title = "ระบบต่อสู้", Icon = "crosshair" }),
-    Visuals = Window:AddTab({ Title = "การมองเห็น", Icon = "eye" }),
-    Player = Window:AddTab({ Title = "ตัวละคร", Icon = "user" }),
-    Farm = Window:AddTab({ Title = "ฟาร์ม/วาร์ป", Icon = "shovels" }),
-    Spectate = Window:AddTab({ Title = "ส่องผู้เล่น", Icon = "video" }),
-    Misc = Window:AddTab({ Title = "อื่นๆ", Icon = "settings" })
-}
-
+--// SERVICES
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
 
--- // วงกลม FOV //
+--// OPTIONS (รวมระบบเทพทั้งหมด)
+local Options = {
+    AimEnabled = false,
+    AimSmooth = 0.15,
+    AimFOV = 150,
+    ShowFOV = true,
+    EspEnabled = false,
+    EspTags = false, -- ใหม่: เปิด/ปิด ชื่อบนหัว
+    AutoGrabGun = false,
+    Speed = 16,
+    InfJump = false,
+    Noclip = false,
+    AutoFarm = false,
+    FieldOfView = 70,
+    SpectateTarget = nil -- ใหม่: เป้าหมายการส่อง
+}
+
+--// UI CONSTRUCT (Mobile Optimized)
+local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
+ScreenGui.Name = "RevezyCloud_MobileV3"
+ScreenGui.ResetOnSpawn = false
+
+-- MAIN FRAME
+local Main = Instance.new("Frame", ScreenGui)
+Main.Size = UDim2.new(0, 340, 0, 480) -- เพิ่มความสูงรองรับ Spectate
+Main.Position = UDim2.new(0.5, -170, 0.5, -240)
+Main.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+Main.BorderSizePixel = 0
+Main.Active = true
+Main.Draggable = true
+Main.Visible = true
+
+local Corner = Instance.new("UICorner", Main)
+Corner.CornerRadius = UDim.new(0, 12)
+
+local Stroke = Instance.new("UIStroke", Main)
+Stroke.Thickness = 2
+Stroke.Color = Color3.fromRGB(45, 45, 55)
+
+-- TITLE BAR
+local Title = Instance.new("TextLabel", Main)
+Title.Size = UDim2.new(1, 0, 0, 45)
+Title.Text = "REVEZY CLOUD | MM2 MOBILE"
+Title.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+Title.TextColor3 = Color3.new(1, 1, 1)
+Title.TextSize = 18
+Title.Font = Enum.Font.GothamBold
+
+local TitleCorner = Instance.new("UICorner", Title)
+TitleCorner.CornerRadius = UDim.new(0, 12)
+
+-- SCROLLING CONTENT
+local Scroll = Instance.new("ScrollingFrame", Main)
+Scroll.Size = UDim2.new(1, -20, 1, -60)
+Scroll.Position = UDim2.new(0, 10, 0, 55)
+Scroll.CanvasSize = UDim2.new(0, 0, 0, 950) -- ปรับขนาดตามจำนวนปุ่ม
+Scroll.BackgroundTransparency = 1
+Scroll.ScrollBarThickness = 2
+Scroll.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 100)
+
+local Layout = Instance.new("UIListLayout", Scroll)
+Layout.Padding = UDim.new(0, 8)
+Layout.SortOrder = Enum.SortOrder.LayoutOrder
+
+--// UI ELEMENT FUNCTIONS
+local function CreateToggle(name, default, callback)
+    local Btn = Instance.new("TextButton", Scroll)
+    Btn.Size = UDim2.new(1, 0, 0, 45)
+    Btn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+    Btn.Text = name .. " : " .. (default and "ON" or "OFF")
+    Btn.TextColor3 = default and Color3.fromRGB(0, 255, 150) or Color3.new(1, 1, 1)
+    Btn.Font = Enum.Font.GothamSemibold
+    Btn.TextSize = 14
+    
+    Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 8)
+    
+    local state = default
+    Btn.MouseButton1Click:Connect(function()
+        state = not state
+        Btn.Text = name .. " : " .. (state and "ON" or "OFF")
+        Btn.TextColor3 = state and Color3.fromRGB(0, 255, 150) or Color3.new(1, 1, 1)
+        callback(state)
+    end)
+end
+
+local function CreateButton(name, callback)
+    local Btn = Instance.new("TextButton", Scroll)
+    Btn.Size = UDim2.new(1, 0, 0, 45)
+    Btn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+    Btn.Text = name
+    Btn.TextColor3 = Color3.new(1, 1, 1)
+    Btn.Font = Enum.Font.GothamSemibold
+    Btn.TextSize = 14
+    
+    Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 8)
+    Btn.MouseButton1Click:Connect(callback)
+end
+
+-- ใหม่: ฟังก์ชันสร้าง Dropdown สำหรับส่องผู้เล่น (Spectate)
+local function CreateSpectateDropdown()
+    local DropdownFrame = Instance.new("Frame", Scroll)
+    DropdownFrame.Size = UDim2.new(1, 0, 0, 50)
+    DropdownFrame.BackgroundTransparency = 1
+    
+    local DropdownBtn = Instance.new("TextButton", DropdownFrame)
+    DropdownBtn.Size = UDim2.new(1, 0, 1, 0)
+    DropdownBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+    DropdownBtn.Text = "🔍 ส่องผู้เล่น (Spectate)"
+    DropdownBtn.TextColor3 = Color3.new(1, 1, 1)
+    DropdownBtn.Font = Enum.Font.GothamSemibold
+    DropdownBtn.TextSize = 14
+    Instance.new("UICorner", DropdownBtn).CornerRadius = UDim.new(0, 8)
+    
+    local PlayerListFrame = Instance.new("ScrollingFrame", ScreenGui) -- แยก Frame ลิสต์ออกมา
+    PlayerListFrame.Size = UDim2.new(0, 200, 0, 250)
+    PlayerListFrame.Position = UDim2.new(0, 0, 0, 0) -- จะปรับตำแหน่งตอนคลิก
+    PlayerListFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+    PlayerListFrame.Visible = false
+    PlayerListFrame.BorderSizePixel = 0
+    PlayerListFrame.ZIndex = 10
+    Instance.new("UICorner", PlayerListFrame)
+    local ListLayout = Instance.new("UIListLayout", PlayerListFrame); ListLayout.Padding = UDim.new(0, 5)
+    
+    local function UpdatePlayerList()
+        for _, child in pairs(PlayerListFrame:GetChildren()) do if child:IsA("TextButton") then child:Destroy() end end
+        for _, p in pairs(Players:GetPlayers()) do
+            local pBtn = Instance.new("TextButton", PlayerListFrame)
+            pBtn.Size = UDim2.new(1, -10, 0, 35)
+            pBtn.Position = UDim2.new(0, 5, 0, 0)
+            pBtn.Text = p.Name
+            pBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+            pBtn.TextColor3 = (p == LocalPlayer) and Color3.new(0, 1, 0) or Color3.new(1, 1, 1)
+            pBtn.Font = Enum.Font.Gotham; pBtn.TextSize = 12
+            Instance.new("UICorner", pBtn)
+            
+            pBtn.MouseButton1Click:Connect(function()
+                if p.Character and p.Character:FindFirstChild("Humanoid") then
+                    Camera.CameraSubject = p.Character.Humanoid
+                    Options.SpectateTarget = p
+                    Title.Text = "REVEZY | ส่อง: " .. p.Name -- เปลี่ยน Title ชั่วคราว
+                    print("Revezy | กำลังส่อง: " .. p.Name)
+                end
+                PlayerListFrame.Visible = false
+            end)
+        end
+        PlayerListFrame.CanvasSize = UDim2.new(0, 0, 0, (#Players:GetPlayers() * 40))
+    end
+    
+    DropdownBtn.MouseButton1Click:Connect(function()
+        UpdatePlayerList()
+        local btnPos = DropdownBtn.AbsolutePosition
+        local btnSize = DropdownBtn.AbsoluteSize
+        PlayerListFrame.Position = UDim2.new(0, btnPos.X, 0, btnPos.Y + btnSize.Y + 35) -- ปรับตำแหน่งลอย
+        PlayerListFrame.Visible = not PlayerListFrame.Visible
+    end)
+    
+    -- ปุ่มเลิกส่อง
+    CreateButton("❌ เลิกส่อง (กลับตัวเรา)", function()
+        if LocalPlayer.Character then
+            Camera.CameraSubject = LocalPlayer.Character.Humanoid
+            Options.SpectateTarget = nil
+            Title.Text = "REVEZY CLOUD | MM2 MOBILE"
+            print("Revezy | เลิกส่อง")
+        end
+    end)
+end
+
+--// FEATURES LOGIC
+local function GetMurderer()
+    local target = nil
+    local dist = Options.AimFOV
+    for _, v in pairs(Players:GetPlayers()) do
+        if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild("HumanoidRootPart") then
+            if v.Backpack:FindFirstChild("Knife") or v.Character:FindFirstChild("Knife") then
+                local pos, onScreen = Camera:WorldToViewportPoint(v.Character.HumanoidRootPart.Position)
+                if onScreen then
+                    local mag = (Vector2.new(pos.X, pos.Y) - Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)).Magnitude
+                    if mag < dist then target = v.Character.HumanoidRootPart; dist = mag end
+                end
+            end
+        end
+    end
+    return target
+end
+
+-- ใหม่: ฟังก์ชันสร้าง Tag บนหัว
+local function CreateTag(char, text, color)
+    local head = char:WaitForChild("Head", 2)
+    if not head then return end
+    local tag = head:FindFirstChild("RevezyTag") or Instance.new("BillboardGui", head)
+    tag.Name = "RevezyTag"; tag.Size = UDim2.new(0, 120, 0, 45); tag.AlwaysOnTop = true; tag.ExtentsOffset = Vector3.new(0, 3, 0)
+    local label = tag:FindFirstChild("Label") or Instance.new("TextLabel", tag)
+    label.Name = "Label"; label.Size = UDim2.new(1, 0, 1, 0); label.BackgroundTransparency = 1; label.TextScaled = true
+    label.Font = Enum.Font.GothamBold; label.Text = text; label.TextColor3 = color; label.TextStrokeTransparency = 0
+    
+    tag.Enabled = Options.EspTags -- เปิด/ปิดตามค่า Options
+end
+
+--// TOGGLES SETUP
+CreateToggle("Aimbot (ล็อคฆาตกร)", false, function(v) Options.AimEnabled = v end)
+CreateToggle("ESP (มองทะลุ)", false, function(v) Options.EspEnabled = v end)
+CreateToggle("ชื่อบนหัว (คนดี/ไอชั่ว)", false, function(v) Options.EspTags = v end) -- ใหม่
+CreateToggle("Auto Grab Gun (เก็บปืน)", false, function(v) Options.AutoGrabGun = v end)
+CreateToggle("Noclip (ทะลุกำแพง)", false, function(v) Options.Noclip = v end)
+CreateToggle("Infinite Jump", false, function(v) Options.InfJump = v end)
+
+CreateButton("เพิ่มความเร็ว (+10)", function()
+    Options.Speed = Options.Speed + 10
+    if LocalPlayer.Character then LocalPlayer.Character.Humanoid.WalkSpeed = Options.Speed end
+end)
+
+CreateSpectateDropdown() -- ใหม่: ใส่ระบบส่องผู้เล่น
+
+--// FLOAT BUTTON (Mobile Toggle)
+local Float = Instance.new("TextButton", ScreenGui)
+Float.Size = UDim2.new(0, 60, 0, 60)
+Float.Position = UDim2.new(0, 15, 0.5, -30)
+Float.Text = "REVEZY"
+Float.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+Float.TextColor3 = Color3.fromRGB(0, 200, 255)
+Float.TextSize = 12
+Float.Font = Enum.Font.GothamBold
+Float.Draggable = true
+Float.Active = true
+Instance.new("UICorner", Float).CornerRadius = UDim.new(1, 0)
+Instance.new("UIStroke", Float).Thickness = 2
+
+Float.MouseButton1Click:Connect(function()
+    Main.Visible = not Main.Visible
+end)
+
+--// FOV CIRCLE
 local FOVCircle = Drawing.new("Circle")
 FOVCircle.Thickness = 2
+FOVCircle.Color = Color3.new(1, 1, 1)
 FOVCircle.Filled = false
 
--- // --- ฟังก์ชันจัดการ ESP (แบบมี Tag บนหัว) --- //
-local function CreateTag(character, text, color)
-    local head = character:WaitForChild("Head", 5)
-    if not head then return end
-    
-    local tag = head:FindFirstChild("RevezyTag")
-    if not tag then
-        tag = Instance.new("BillboardGui")
-        tag.Name = "RevezyTag"
-        tag.Parent = head
-        tag.Size = UDim2.new(0, 200, 0, 50)
-        tag.AlwaysOnTop = true
-        tag.ExtentsOffset = Vector3.new(0, 3, 0)
-        
-        local label = Instance.new("TextLabel")
-        label.Parent = tag
-        label.Size = UDim2.new(1, 0, 1, 0)
-        label.BackgroundTransparency = 1
-        label.TextScaled = true
-        label.Font = Enum.Font.GothamBold
-        label.TextStrokeTransparency = 0
-    end
-    
-    tag.TextLabel.Text = text
-    tag.TextLabel.TextColor3 = color
-end
-
-local function UpdateVisuals()
-    for _, v in pairs(Players:GetPlayers()) do
-        if v ~= LocalPlayer and v.Character then
-            local char = v.Character
-            local highlight = char:FindFirstChild("RevezyHighlight")
-            local head = char:FindFirstChild("Head")
-            
-            if Options.EspEnabled then
-                -- เช็คบทบาท
-                local isMurd = v.Backpack:FindFirstChild("Knife") or char:FindFirstChild("Knife")
-                local isSheriff = v.Backpack:FindFirstChild("Gun") or char:FindFirstChild("Gun")
-                
-                local roleText = "● คนดี"
-                local roleColor = Color3.new(0, 1, 0)
-                
-                if isMurd then
-                    roleText = "☠️ ไอชั่ว (ฆาตกร)"
-                    roleColor = Color3.new(1, 0, 0)
-                elseif isSheriff then
-                    roleText = "⭐ นายอำเภอ"
-                    roleColor = Color3.new(0, 0.6, 1)
-                end
-                
-                -- ใส่ Highlight (เส้นขอบ)
-                if not highlight then
-                    highlight = Instance.new("Highlight", char)
-                    highlight.Name = "RevezyHighlight"
-                end
-                highlight.FillColor = roleColor
-                highlight.FillTransparency = 0.5
-                
-                -- ใส่ Tag บนหัว
-                CreateTag(char, roleText, roleColor)
-            else
-                -- ลบออกถ้าปิด ESP
-                if highlight then highlight:Destroy() end
-                if head and head:FindFirstChild("RevezyTag") then head.RevezyTag:Destroy() end
-            end
-        end
-    end
-end
-
--- // LOOP หลัก //
+--// MAIN LOOP
 RunService.RenderStepped:Connect(function()
-    FOVCircle.Visible = Options.ShowFOV
+    -- FOV
+    FOVCircle.Visible = Options.ShowFOV and Options.AimEnabled
     FOVCircle.Radius = Options.AimFOV
-    FOVCircle.Color = Options.FOVColor
-    FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    FOVCircle.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
 
+    -- AIMBOT
     if Options.AimEnabled then
-        local target = nil
-        local dist = Options.AimFOV
-        local ScreenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-        
-        for _, v in pairs(Players:GetPlayers()) do
-            if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild("HumanoidRootPart") then
-                if v.Backpack:FindFirstChild("Knife") or v.Character:FindFirstChild("Knife") then
-                    local Pos, OnScreen = Camera:WorldToViewportPoint(v.Character.HumanoidRootPart.Position)
-                    if OnScreen then
-                        local Mag = (Vector2.new(Pos.X, Pos.Y) - ScreenCenter).Magnitude
-                        if Mag < dist then target = v.Character.HumanoidRootPart; dist = Mag end
-                    end
-                end
-            end
-        end
+        local target = GetMurderer()
         if target then
             Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, target.Position), Options.AimSmooth)
         end
     end
 
-    Camera.FieldOfView = Options.FieldOfView
-    UpdateVisuals()
-
-    -- Item ESP (ปืนตก)
-    local gun = workspace:FindFirstChild("GunDrop")
-    if gun and Options.ItemEsp then
-        if not gun:FindFirstChild("ItemHighlight") then
-            local h = Instance.new("Highlight", gun); h.Name = "ItemHighlight"; h.FillColor = Color3.new(1,1,0)
-        end
-    elseif gun and gun:FindFirstChild("ItemHighlight") then
-        gun.ItemHighlight:Destroy()
+    -- Spectate ป้องกันกล้องหลุด
+    if Options.SpectateTarget and Options.SpectateTarget.Character and Options.SpectateTarget.Character:FindFirstChild("Humanoid") then
+        Camera.CameraSubject = Options.SpectateTarget.Character.Humanoid
     end
-end)
 
--- // --- UI Components --- //
+    -- AUTO GRAB
+    if Options.AutoGrabGun then
+        local gun = workspace:FindFirstChild("GunDrop")
+        if gun and LocalPlayer.Character then
+            LocalPlayer.Character.HumanoidRootPart.CFrame = gun.CFrame
+        end
+    end
 
--- TAB: ระบบต่อสู้
-Tabs.Main:AddToggle("AimToggle", {Title = "เปิดระบบล็อคเป้า", Default = false}):OnChanged(function(v) Options.AimEnabled = v end)
-Tabs.Main:AddSlider("AimSmooth", {Title = "ความเนียน", Default = 0.2, Min = 0.1, Max = 1, Rounding = 1}):OnChanged(function(v) Options.AimSmooth = v end)
-Tabs.Main:AddSlider("AimFOV", {Title = "ระยะล็อค (FOV)", Default = 150, Min = 50, Max = 800, Rounding = 0}):OnChanged(function(v) Options.AimFOV = v end)
-Tabs.Main:AddColorpicker("FOVColor", {Title = "สีวงกลม FOV", Default = Color3.new(1,1,1)}):OnChanged(function(v) Options.FOVColor = v end)
-
--- TAB: การมองเห็น
-Tabs.Visuals:AddToggle("ESPToggle", {Title = "เปิด ESP (คนดี/ไอชั่ว)", Default = false}):OnChanged(function(v) Options.EspEnabled = v end)
-Tabs.Visuals:AddToggle("ItemEsp", {Title = "มองเห็นปืนที่ตก", Default = false}):OnChanged(function(v) Options.ItemEsp = v end)
-Tabs.Visuals:AddSlider("FOVSetting", {Title = "ระยะมุมมอง (Field of View)", Default = 70, Min = 70, Max = 120, Rounding = 0}):OnChanged(function(v) Options.FieldOfView = v end)
-
--- TAB: ตัวละคร
-Tabs.Player:AddSlider("Speed", {Title = "ความเร็วการเดิน", Default = 16, Min = 16, Max = 150, Rounding = 0}):OnChanged(function(v) 
-    if LocalPlayer.Character then LocalPlayer.Character.Humanoid.WalkSpeed = v end 
-end)
-Tabs.Player:AddToggle("InfJump", {Title = "กระโดดไม่จำกัด", Default = false}):OnChanged(function(v) Options.InfJump = v end)
-Tabs.Player:AddToggle("Noclip", {Title = "เดินทะลุกำแพง", Default = false}):OnChanged(function(v) Options.Noclip = v end)
-
--- TAB: ฟาร์ม/วาร์ป
-Tabs.Farm:AddToggle("AutoFarm", {Title = "ฟาร์มเหรียญอัตโนมัติ", Default = false}):OnChanged(function(v)
-    Options.AutoFarm = v
-    task.spawn(function()
-        while Options.AutoFarm do
-            task.wait(0.1)
-            local container = workspace:FindFirstChild("CoinContainer", true) or workspace:FindFirstChild("CoinHolder", true)
-            if container then
-                for _, coin in pairs(container:GetChildren()) do
-                    if Options.AutoFarm and LocalPlayer.Character and coin:IsA("BasePart") then
-                        LocalPlayer.Character.HumanoidRootPart.CFrame = coin.CFrame
-                        task.wait(0.4)
-                    end
+    -- ESP & TAGS
+    for _, v in pairs(Players:GetPlayers()) do
+        if v ~= LocalPlayer and v.Character then
+            local char = v.Character
+            local hl = char:FindFirstChild("RevezyHL")
+            
+            -- ตรวจสอบบทบาท
+            local isM = v.Backpack:FindFirstChild("Knife") or char:FindFirstChild("Knife")
+            local isS = v.Backpack:FindFirstChild("Gun") or char:FindFirstChild("Gun")
+            
+            local col = isM and Color3.new(1,0,0) or (isS and Color3.new(0,0.7,1) or Color3.new(0,1,0))
+            local txt = isM and "☠️ ไอคนชั่ว" or (isS and "⭐ นายอำเภอ" or "● คนดี")
+            
+            -- ESP มองทะลุ (Highlight)
+            if Options.EspEnabled then
+                if not hl then hl = Instance.new("Highlight", char); hl.Name = "RevezyHL"; hl.OutlineTransparency = 0 end
+                hl.FillColor = col; hl.FillTransparency = 0.5
+            elseif hl then hl:Destroy() end
+            
+            -- ชื่อบนหัว (Tag)
+            if Options.EspTags then
+                CreateTag(char, txt, col) -- เรียกฟังก์ชันสร้าง/อัปเดต Tag
+            else
+                if char:FindFirstChild("Head") and char.Head:FindFirstChild("RevezyTag") then
+                    char.Head.RevezyTag:Destroy()
                 end
             end
         end
-    end)
-end)
-
-Tabs.Farm:AddButton({
-    Title = "วาร์ปไปเก็บปืน",
-    Callback = function()
-        local gun = workspace:FindFirstChild("GunDrop")
-        if gun then LocalPlayer.Character.HumanoidRootPart.CFrame = gun.CFrame 
-        else Fluent:Notify({Title="แจ้งเตือน", Content="ไม่มีปืนตก"}) end
     end
-})
-
--- TAB: ส่องผู้เล่น
-local SpectateDropdown = Tabs.Spectate:AddDropdown("Spec", {Title = "เลือกผู้เล่นที่ต้องการส่อง", Values = {}})
-local function UpdatePlayers()
-    local tbl = {}
-    for _, p in pairs(Players:GetPlayers()) do table.insert(tbl, p.Name) end
-    SpectateDropdown:SetValues(tbl)
-end
-Tabs.Spectate:AddButton({Title = "รีเฟรชรายชื่อ", Callback = UpdatePlayers})
-Tabs.Spectate:AddButton({Title = "เลิกส่อง", Callback = function() Camera.CameraSubject = LocalPlayer.Character.Humanoid end})
-SpectateDropdown:OnChanged(function(v)
-    local p = Players:FindFirstChild(v)
-    if p and p.Character then Camera.CameraSubject = p.Character.Humanoid end
 end)
 
--- TAB: อื่นๆ
-Tabs.Misc:AddButton({
-    Title = "ย้ายเซิร์ฟเวอร์ (Rejoin)",
-    Callback = function() game:GetService("TeleportService"):Teleport(game.PlaceId, LocalPlayer) end
-})
-
--- Anti-AFK
-local VirtualUser = game:GetService("VirtualUser")
-LocalPlayer.Idled:Connect(function()
-    VirtualUser:CaptureController()
-    VirtualUser:ClickButton2(Vector2.new())
+-- NOCLIP / INF JUMP
+RunService.Stepped:Connect(function()
+    if Options.Noclip and LocalPlayer.Character then
+        for _, p in pairs(LocalPlayer.Character:GetDescendants()) do
+            if p:IsA("BasePart") then p.CanCollide = false end
+        end
+    end
 end)
 
--- ระบบ Infinite Jump Logic
-game:GetService("UserInputService").JumpRequest:Connect(function()
+UIS.JumpRequest:Connect(function()
     if Options.InfJump and LocalPlayer.Character then
         LocalPlayer.Character:FindFirstChildOfClass("Humanoid"):ChangeState("Jumping")
     end
 end)
 
--- ระบบ Noclip Logic
-RunService.Stepped:Connect(function()
-    if Options.Noclip and LocalPlayer.Character then
-        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
-            if part:IsA("BasePart") then part.CanCollide = false end
-        end
-    end
-end)
-
-Window:SelectTab(1)
-UpdatePlayers()
-Fluent:Notify({Title = "Revezy Cloud", Content = "อัปเดตระบบ ESP 'คนดี/ไอชั่ว' เรียบร้อย!", Duration = 5})
+print("Revezy Cloud Mobile V3 Loaded!")
