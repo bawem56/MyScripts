@@ -192,7 +192,7 @@ end)
 -- [[ 🔘 FLOATING OVERLORD BUTTON ]]
 local Float = Instance.new("TextButton", ScreenGui)
 Float.Size = UDim2.new(0, 75, 0, 75); Float.Position = UDim2.new(0, 20, 0.4, 0); Float.BackgroundColor3 = Color3.fromRGB(255, 170, 0)
-Float.Text = "👑"; Float.TextSize = 35; Instance.new("UICorner", Float).CornerRadius = UDim.new(1,0)
+Float.Text = "Revezy Roblox v2"; Float.TextSize = 35; Instance.new("UICorner", Float).CornerRadius = UDim.new(1,0)
 local FloatStroke = Instance.new("UIStroke", Float); FloatStroke.Thickness = 4; FloatStroke.Color = Color3.new(1,1,1)
 
 Float.MouseButton1Click:Connect(function()
